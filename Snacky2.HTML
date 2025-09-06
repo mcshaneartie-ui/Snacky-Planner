@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Snacky — Meal Planner</title>
+<style>
+  :root{
+    --primary:#4CAF50;
+    --primary-dark:#388E3C;
+    --bg:#f6f8fa;
+    --card:#fff;
+    --muted:#6b7280;
+    --accent:#10b981;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:Inter, "Segoe UI", Roboto, Arial, sans-serif;
+    background:var(--bg);
+    color:#111827;
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    background: linear-gradient(135deg,var(--primary),var(--primary-dark));
+    color:white;
+    padding:16px;
+    text-align:center;
+    font-weight:700;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  header small{display:block;font-weight:500;opacity:0.9;font-size:13px;margin-top:4px}
+
+  main{flex:1;padding:16px;padding-bottom:80px}
+  .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(15,23,42,0.06);margin-bottom:16px;}
+  h2{margin:0 0 8px 0;color:var(--primary-dark)}
+  label{display:block;margin-top:10px;font-weight:600;font-size:13px;color:var(--muted)}
+  input[type=text], textarea, select {
+    width:100%;
+    padding:10px 12px;
+    margin-top:6px;
+    border-radius:8px;
+    border:1px solid #e5e7eb;
+    font-size:14px;
+  }
+  textarea{min-height:80px;resize:vertical}
+  .row{display:flex;gap:10px;align-items:center}
+  .row > *{flex:1}
+  button{
+    padding:10px 12px;border-radius:10px;border:none;background:var(--primary);color:white;font-weight:700;cursor:pointer;
+  }
+  .btn-ghost{background:transparent;color:var(--primary);border:1px solid #d1fae5}
+  .muted{color:var(--muted);font-size:13px}
+  ul{padding-left:18px;margin-top:8px}
+  li{margin-bottom:6px}
+
+  /* bottom nav */
+  .bottom-nav{
+    position:fixed;left:0;right:0;bottom:0;height:64px;background:white;border-top:1px solid #e6edf3;display:flex;z-index:20;
+  }
+  .nav-btn{flex:1;border:0;background:transparent;padding:8px 6px;font-weight:700;color:#374151;cursor:pointer}
+  .nav-btn.active{color:var(--primary);box-shadow:inset 0 4px 0 rgba(72,165,84,0.12)}
+
+  /* recipe list / controls */
+  .recipe-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px}
+  .recipe-left{flex:1}
+  .small-muted{font-size:13px;color:var(--muted)}
+
+  /* grocery list */
+  .grocery-item{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px}
+  .grocery-item.checked{text-decoration:line-through;color:#9CA3AF;opacity:0.8}
+
+  .plan-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(min-width:900px){ .plan-grid{grid-template-columns:repeat(3,1fr)} }
+
+  .nutrition-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .nut-card{background:#f8fafc;padding:8px;border-radius:8px;flex:1;min-width:120px;text-align:center;}
+
+  .small-note{font-size:12px;color:var(--muted);margin-top:8px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .pill{background:#f1f5f9;padding:8px;border-radius:999px;font-weight:700;color:#334155}
+
+  /* hide inactive sections */
+  .view{display:none}
+  .view.active{display:block}
+</style>
+</head>
+<body>
+
+<header>
+  🥗 Snacky — Meal Planner & Grocery Builder
+  <small>polished, functional, offline-first — works in your browser</small>
+</header>
+
+<main>
+  <!-- Recipes View -->
+  <div id="view-recipes" class="view active">
+    <div class="card">
+      <h2>Recipes</h2>
+      <div id="recipe-form">
+        <label>Recipe Name</label>
+        <input id="r-name" type="text" placeholder="e.g. Chicken Stir Fry">
+        <label>Ingredients (comma separated)</label>
+        <textarea id="r-ings" placeholder="e.g. chicken breast, rice, soy sauce"></textarea>
+        <div class="controls">
+          <button id="r-add-btn">Add Recipe</button>
+          <button id="r-cancel-edit" class="btn-ghost" style="display:none">Cancel Edit</button>
+        </div>
+      </div>
+      <hr>
+      <div id="recipe-list-area" style="max-height:400px;overflow:auto"></div>
+    </div>
+  </div>
+
+  <!-- Plans View -->
+  <div id="view-plans" class="view">
+    <div class="card">
+      <h2>Meal Plans</h2>
+      <label>Create / Switch Plan</label>
+      <div class="row">
+        <input id="plan-name" placeholder="Plan name (e.g. Healthy Week)">
+        <button id="plan-create">Create</button>
+      </div>
+      <label>Saved Plans</label>
+      <div id="plans-list" style="max-height:300px;overflow:auto;margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>Plan Week — <span id="current-plan-name">(no plan)</span></h2>
+      <div class="plan-grid" id="plan-days-area"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button id="plan-save">Save Plan</button>
+        <button id="plan-clear" class="btn-ghost">Clear Week</button>
+        <button id="plan-delete" class="btn-ghost" style="display:none;color:#dc2626">Delete Plan</button>
+      </div>
+      <div class="nutrition-row" id="week-nutrition" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- Grocery View -->
+  <div id="view-grocery" class="view">
+    <div class="card">
+      <h2>Grocery List</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="generate-grocery">Generate Grocery List</button>
+        <button id="grocery-copy" class="btn-ghost">Copy</button>
+        <button id="grocery-export" class="btn-ghost">Export .txt</button>
+        <button id="grocery-reset" class="btn-ghost" style="color:#dc2626">Reset Checked</button>
+      </div>
+      <div id="grocery-list" style="margin-top:12px;max-height:400px;overflow:auto"></div>
+    </div>
+  </div>
+
+  <!-- Nutrition View -->
+  <div id="view-nutrition" class="view">
+    <div class="card">
+      <h2>Nutrition — Recipe Preview</h2>
+      <div id="recipe-preview" class="small-muted">Select a recipe from Recipes to see nutrition</div>
+      <div class="nutrition-row" id="recipe-nut" style="margin-top:12px"></div>
+    </div>
+  </div>
+</main>
+
+<!-- bottom navigation -->
+<div class="bottom-nav">
+  <button class="nav-btn active" data-target="recipes" onclick="switchView('recipes', this)">Recipes</button>
+  <button class="nav-btn" data-target="plans" onclick="switchView('plans', this)">Plans</button>
+  <button class="nav-btn" data-target="grocery" onclick="switchView('grocery', this)">Grocery</button>
+  <button class="nav-btn" data-target="nutrition" onclick="switchView('nutrition', this)">Nutrition</button>
+</div>
+
+<script>
+/* ============================
+   Nutrition DB & storage
+   =============================*/
+const NUTRITION_DB = {
+  "egg": {cal:78,p:6.3,f:5.3,c:0.6},
+  "chicken breast": {cal:165,p:31,f:3.6,c:0},
+  "rice": {cal:206,p:4.3,f:0.4,c:45},
+  "pasta": {cal:200,p:7,f:1.2,c:42},
+  "beef": {cal:250,p:26,f:17,c:0},
+  "potato": {cal:161,p:4.3,f:0.2,c:36},
+  "tomato": {cal:18,p:0.9,f:0.2,c:3.9},
+  "lettuce": {cal:5,p:0.5,f:0,c:1},
+  "cheese": {cal:113,p:6.7,f:9.3,c:0.4},
+  "milk": {cal:122,p:8,f:4.8,c:12},
+  "olive oil": {cal:119,p:0,f:13.5,c:0}
+};
+const LS_RECIPES = 'snacky_recipes_v1';
+const LS_PLANS = 'snacky_plans_v1';
+const LS_CURRENT_PLAN = 'snacky_current_plan_v1';
+let recipes = JSON.parse(localStorage.getItem(LS_RECIPES)||'[]');
+let plans = JSON.parse(localStorage.getItem(LS_PLANS)||'{}');
+let currentPlan = localStorage.getItem(LS_CURRENT_PLAN)||null;
+
+/* ============================
+   Multi-view navigation
+   =============================*/
+function switchView(name, btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+/* ============================
+   Recipe UI & actions
+   =============================*/
+let editingIndex=null;
+function saveAll(){ localStorage.setItem(LS_RECIPES,JSON.stringify(recipes)); localStorage.setItem(LS_PLANS,JSON.stringify(plans)); localStorage.setItem(LS_CURRENT_PLAN,currentPlan||''); }
+
+function parseIngredient(token){
+  const parts=token.split('|').map(p=>p.trim()).filter(Boolean);
+  return {name:parts[0],qty:parts[1]||null};
+}
+function estimateNutritionForIngredient(name,qtyStr){
+  const key=name.toLowerCase();
+  const base=NUTRITION_DB[key];
+  if(!base) return {cal:0,p:0,f:0,c:0,unknown:true};
+  return {cal:base.cal,p:base.p,f:base.f,c:base.c,unknown:false};
+}
+function computeRecipeNutrition(r){
+  let total={cal:0,p:0,f:0,c:0,unknownCount:0};
+  (r.ingredients||[]).forEach(t=>{
+    const obj=parseIngredient(t);
+    const est=estimateNutritionForIngredient(obj.name,obj.qty);
+    total.cal+=est.cal||0;
+    total.p+=est.p||0;
+    total.f+=est.f||0;
+    total.c+=est.c||0;
+    if(est.unknown) total.unknownCount++;
+  });
+  total.cal=Math.round(total.cal); total.p=Math.round(total.p*10)/10; total.f=Math.round(total.f*10)/10; total.c=Math.round(total.c*10)/10;
+  return total;
+}
+
+function renderRecipeList(){
+  const area=document.getElementById('recipe-list-area'); area.innerHTML='';
+  if(recipes.length===0){ area.innerHTML='<div class="small-muted">No recipes yet — add one above.</div>'; return; }
+  recipes.forEach((r,idx)=>{
+    const el=document.createElement('div'); el.className='recipe-item'; el.style.marginBottom='6px';
+    const left=document.createElement('div'); left.className='recipe-left';
+    const title=document.createElement('div'); title.style.fontWeight='700'; title.textContent=r.name;
+    const sub=document.createElement('div'); sub.className='small-muted'; sub.textContent=(r.ingredients||[]).join(', ');
+    left.appendChild(title); left.appendChild(sub);
+    const controls=document.createElement('div'); controls.style.display='flex'; controls.style.gap='8px';
+    const previewBtn=document.createElement('button'); previewBtn.className='btn-ghost'; previewBtn.textContent='Preview'; previewBtn.onclick=()=>previewRecipe(idx);
+    const editBtn=document.createElement('button'); editBtn.className='btn-ghost'; editBtn.textContent='Edit'; editBtn.onclick=()=>startEditRecipe(idx);
+    const delBtn=document.createElement('button'); delBtn.style.background='transparent'; delBtn.style.color='#dc2626'; delBtn.textContent='Delete';
+    delBtn.onclick=()=>{ if(confirm(`Delete recipe "${r.name}"?`)){ recipes.splice(idx,1); saveAll(); renderRecipeList(); updatePlanOptions(); } };
+    controls.appendChild(previewBtn); controls.appendChild(editBtn); controls.appendChild(delBtn);
+    el.appendChild(left); el.appendChild(controls); area.appendChild(el);
+  });
+}
+
+function previewRecipe(idx){
+  const r=recipes[idx]; const preview=document.getElementById('recipe-preview'); const nutArea=document.getElementById('recipe-nut');
+  preview.textContent=`${r.name}: ${r.ingredients.join(', ')}`;
+  const totals=computeRecipeNutrition(r);
+  nutArea.innerHTML=''; const items=[{k:'Calories',v:totals.cal+' kcal'},{k:'Protein',v:totals.p+' g'},{k:'Fat',v:totals.f+' g'},{k:'Carbs',v:totals.c+' g'},{k:'Unknown items',v:totals.unknownCount}];
+  items.forEach(it=>{ const card=document.createElement('div'); card.className='nut-card'; card.innerHTML=`<strong>${it.k}</strong><br>${it.v}`; nutArea.appendChild(card); });
+  switchView('nutrition',document.querySelector('.nav-btn[data-target=nutrition]'));
+}
+
+function startEditRecipe(idx){
+  const r=recipes[idx]; editingIndex=idx;
+  document.getElementById('r-name').value=r.name;
+  document.getElementById('r-ings').value=r.ingredients.join(', ');
+  document.getElementById('r-cancel-edit').style.display='inline-block';
+}
+
+document.getElementById('r-add-btn').onclick=()=>{
+  const name=document.getElementById('r-name').value.trim();
+  const ings=document.getElementById('r-ings').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!name){ alert('Recipe needs a name'); return; }
+  const obj={name,ingredients:ings};
+  if(editingIndex!==null){ recipes[editingIndex]=obj; editingIndex=null; document.getElementById('r-cancel-edit').style.display='none'; } 
+  else recipes.push(obj);
+  document.getElementById('r-name').value=''; document.getElementById('r-ings').value='';
+  saveAll(); renderRecipeList(); updatePlanOptions();
+}
+document.getElementById('r-cancel-edit').onclick=()=>{
+  editingIndex=null; document.getElementById('r-cancel-edit').style.display='none'; document.getElementById('r-name').value=''; document.getElementById('r-ings').value='';
+}
+
+/* ============================
+   Plan UI & actions
+   =============================*/
+function updatePlanOptions(){
+  const plansArea=document.getElementById('plans-list'); plansArea.innerHTML='';
+  for(const name in plans){
+    const div=document.createElement('div'); div.className='pill'; div.textContent=name; div.onclick=()=>switchPlan(name);
+    plansArea.appendChild(div);
+  }
+  renderPlanWeek();
+}
+function switchPlan(name){ currentPlan=name; localStorage.setItem(LS_CURRENT_PLAN,name); renderPlanWeek(); document.getElementById('current-plan-name').textContent=name; document.getElementById('plan-delete').style.display='inline-block'; }
+document.getElementById('plan-create').onclick=()=>{
+  const name=document.getElementById('plan-name').value.trim(); if(!name) return alert('Enter plan name'); if(plans[name]) return alert('Name exists');
+  plans[name]=Array(7).fill(null); currentPlan=name; saveAll(); updatePlanOptions(); document.getElementById('plan-name').value=''; document.getElementById('current-plan-name').textContent=name; document.getElementById('plan-delete').style.display='inline-block';
+}
+document.getElementById('plan-delete').onclick=()=>{
+  if(!currentPlan) return; if(confirm(`Delete plan "${currentPlan}"?`)){ delete plans[currentPlan]; currentPlan=null; saveAll(); updatePlanOptions(); document.getElementById('current-plan-name').textContent='(no plan)'; document.getElementById('plan-delete').style.display='none'; }
+}
+document.getElementById('plan-clear').onclick=()=>{
+  if(!currentPlan) return; plans[currentPlan]=Array(7).fill(null); saveAll(); renderPlanWeek();
+}
+
+function renderPlanWeek(){
+  const area=document.getElementById('plan-days-area'); area.innerHTML='';
+  if(!currentPlan) return;
+  const week=plans[currentPlan];
+  week.forEach((r,idx)=>{
+    const div=document.createElement('div'); div.className='card';
+    const title=document.createElement('div'); title.style.fontWeight='700'; title.textContent=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][idx];
+    const select=document.createElement('select');
+    const emptyOption=document.createElement('option'); emptyOption.value=''; emptyOption.text='-- Select Recipe --'; select.appendChild(emptyOption);
+    recipes.forEach((rec,i)=>{ const opt=document.createElement('option'); opt.value=i; opt.textContent=rec.name; if(r===i) opt.selected=true; select.appendChild(opt); });
+    select.onchange=(e)=>{ week[idx]=e.target.value===''?null:parseInt(e.target.value); saveAll(); renderNutritionTotals(); };
+    div.appendChild(title); div.appendChild(select); area.appendChild(div);
+  });
+  renderNutritionTotals();
+}
+
+function renderNutritionTotals(){
+  const totals={cal:0,p:0,f:0,c:0};
+  if(!currentPlan) return;
+  plans[currentPlan].forEach(i=>{
+    if(i!==null){
+      const r=recipes[i]; const nut=computeRecipeNutrition(r);
+      totals.cal+=nut.cal; totals.p+=nut.p; totals.f+=nut.f; totals.c+=nut.c;
+    }
+  });
+  const nutArea=document.getElementById('week-nutrition'); nutArea.innerHTML='';
+  ['Calories','Protein','Fat','Carbs'].forEach((k,idx)=>{
+    const card=document.createElement('div'); card.className='nut-card';
+    const val=idx===0?totals.cal+' kcal': idx===1?totals.p+' g': idx===2?totals.f+' g':totals.c+' g';
+    card.innerHTML=`<strong>${k}</strong><br>${val}`; nutArea.appendChild(card);
+  });
+}
+
+/* ============================
+   Grocery List
+   =============================*/
+document.getElementById('generate-grocery').onclick=()=>{
+  if(!currentPlan) return alert('Select a plan first'); const grocery={};
+  plans[currentPlan].forEach(idx=>{ if(idx===null) return; recipes[idx].ingredients.forEach(ing=>{ grocery[ing]=true; }); });
+  const area=document.getElementById('grocery-list'); area.innerHTML='';
+  Object.keys(grocery).forEach(name=>{
+    const div=document.createElement('div'); div.className='grocery-item';
+    const cb=document.createElement('input'); cb.type='checkbox';
+    cb.onchange=()=>{ div.classList.toggle('checked',cb.checked); };
+    div.appendChild(cb); const span=document.createElement('span'); span.textContent=name; div.appendChild(span);
+    area.appendChild(div);
+  });
+}
+document.getElementById('grocery-copy').onclick=()=>{
+  const items=[...document.querySelectorAll('.grocery-item span')].map(s=>s.textContent).join('\n'); navigator.clipboard.writeText(items); alert('Copied!');
+}
+document.getElementById('grocery-export').onclick=()=>{
+  const items=[...document.querySelectorAll('.grocery-item span')].map(s=>s.textContent).join('\n'); const blob=new Blob([items],{type:'text/plain'}); const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='grocery.txt'; a.click(); URL.revokeObjectURL(url);
+}
+document.getElementById('grocery-reset').onclick=()=>{ document.querySelectorAll('.grocery-item input:checked').forEach(cb=>cb.checked=false); document.querySelectorAll('.grocery-item').forEach(div=>div.classList.remove('checked')); }
+
+/* ============================
+   Init
+   =============================*/
+renderRecipeList(); updatePlanOptions();
+</script>
+
+</body>
+</html>
