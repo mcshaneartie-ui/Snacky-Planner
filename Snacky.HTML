@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snacky Meal Planner</title>
+<style>
+    body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f0f2f5;
+    }
+    header {
+        background: #4CAF50;
+        color: white;
+        padding: 15px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: bold;
+    }
+    .tabs {
+        display: flex;
+        background: #333;
+    }
+    .tabs button {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        background: #333;
+        color: white;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    .tabs button.active {
+        background: #4CAF50;
+    }
+    .tab-content {
+        display: none;
+        padding: 20px;
+    }
+    .active-content {
+        display: block;
+    }
+    .card {
+        background: white;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select, textarea, button {
+        margin-top: 5px;
+        padding: 10px;
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+    }
+    button {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        transition: 0.3s;
+    }
+    button:hover {
+        background: #45a049;
+    }
+    ul { padding-left: 20px; }
+</style>
+</head>
+<body>
+
+<header>🥗 Snacky Meal Planner</header>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="openTab('recipes')">Recipes</button>
+    <button class="tab-btn" onclick="openTab('plan')">Plan Week</button>
+    <button class="tab-btn" onclick="openTab('grocery')">Grocery List</button>
+</div>
+
+<div id="recipes" class="tab-content active-content">
+    <div class="card">
+        <h2>Add Recipe</h2>
+        <label>Recipe Name:</label>
+        <input type="text" id="recipe-name">
+        <label>Ingredients (comma separated):</label>
+        <input type="text" id="recipe-ingredients">
+        <button onclick="addRecipe()">Add Recipe</button>
+    </div>
+    <div class="card">
+        <h2>Recipes</h2>
+        <ul id="recipe-list"></ul>
+    </div>
+</div>
+
+<div id="plan" class="tab-content">
+    <div class="card">
+        <h2>Plan Week</h2>
+        <div id="plan-days"></div>
+        <button onclick="savePlan()">Save Weekly Plan</button>
+    </div>
+</div>
+
+<div id="grocery" class="tab-content">
+    <div class="card">
+        <h2>Grocery List</h2>
+        <button onclick="generateGroceryList()">Generate Grocery List</button>
+        <ul id="grocery-list"></ul>
+    </div>
+</div>
+
+<script>
+// ----- LocalStorage Data -----
+let recipes = JSON.parse(localStorage.getItem('recipes') || '[]');
+let plan = JSON.parse(localStorage.getItem('plan') || '{}');
+
+// ----- Tabs -----
+function openTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active-content'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(tabName).classList.add('active-content');
+    event.target.classList.add('active');
+}
+
+// ----- Recipes -----
+function updateRecipeList() {
+    const list = document.getElementById('recipe-list');
+    list.innerHTML = '';
+    recipes.forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = `${r.name}: ${r.ingredients.join(', ')}`;
+        list.appendChild(li);
+    });
+}
+
+function addRecipe() {
+    const name = document.getElementById('recipe-name').value.trim();
+    const ingredients = document.getElementById('recipe-ingredients').value
+        .split(',').map(i => i.trim()).filter(i => i);
+    if(!name || ingredients.length === 0) {
+        alert('Please enter a valid name and ingredients!');
+        return;
+    }
+    recipes.push({name, ingredients});
+    localStorage.setItem('recipes', JSON.stringify(recipes));
+    document.getElementById('recipe-name').value = '';
+    document.getElementById('recipe-ingredients').value = '';
+    updateRecipeList();
+    updatePlanOptions();
+}
+
+// ----- Planning -----
+function updatePlanOptions() {
+    const daysDiv = document.getElementById('plan-days');
+    daysDiv.innerHTML = '';
+    const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    days.forEach(day => {
+        const label = document.createElement('label');
+        label.textContent = day;
+        const select = document.createElement('select');
+        select.id = 'plan-' + day;
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '-- Select Recipe --';
+        select.appendChild(emptyOption);
+        recipes.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.name;
+            opt.textContent = r.name;
+            if(plan[day] === r.name) opt.selected = true;
+            select.appendChild(opt);
+        });
+        daysDiv.appendChild(label);
+        daysDiv.appendChild(select);
+    });
+}
+
+function savePlan() {
+    const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    days.forEach(day => {
+        const sel = document.getElementById('plan-' + day);
+        plan[day] = sel.value;
+    });
+    localStorage.setItem('plan', JSON.stringify(plan));
+    alert('Weekly plan saved!');
+}
+
+// ----- Grocery List -----
+function generateGroceryList() {
+    let grocerySet = new Set();
+    for(let day in plan){
+        const recipeName = plan[day];
+        const r = recipes.find(r => r.name === recipeName);
+        if(r) r.ingredients.forEach(ing => grocerySet.add(ing));
+    }
+    const list = document.getElementById('grocery-list');
+    list.innerHTML = '';
+    Array.from(grocerySet).sort().forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        list.appendChild(li);
+    });
+}
+
+// ----- Init -----
+updateRecipeList();
+updatePlanOptions();
+
+</script>
+
+</body>
+</html>
